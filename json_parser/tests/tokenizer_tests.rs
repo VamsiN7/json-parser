@@ -1,11 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use crate::tokenizer::{tokenize, Token};
+    use json_parser::tokenizer::{tokenize, Token};
 
     #[test]
     fn test_simple_json() {
         let json = r#"{"key": "value", "num": 123, "bool": true, "nullVal": null}"#;
-        let tokens = tokenize(json);
+        let tokens_result = tokenize(json);
+        assert!(tokens_result.is_ok());
+        let tokens = tokens_result.unwrap();
         assert_eq!(tokens, vec![
             Token::LeftBrace,
             Token::String("key".to_string()), Token::Colon, Token::String("value".to_string()), Token::Comma,

@@ -1,3 +1,5 @@
+use crate::parser::ParseError;
+
 #[derive(Debug, PartialEq)]
 pub enum Token {
     LeftBrace,    
@@ -14,7 +16,7 @@ pub enum Token {
 }
 
 // convert json string into a list of tokens
-pub fn tokenize(json: &str) -> Vec<Token> {
+pub fn tokenize(json: &str) -> Result<Vec<Token>, ParseError> {
     let mut tokens = Vec::new();
     let chars: Vec<char> = json.chars().collect();
     let mut i = 0;
@@ -35,43 +37,64 @@ pub fn tokenize(json: &str) -> Vec<Token> {
                     s.push(chars[i]);
                     i += 1;
                 }
+                if i >= chars.len() || chars[i]!= '"' {
+                    // Unterminated string
+                    return Err(ParseError::new(&format!("Unterminated string starting at position {}", i), i));
+                }
                 tokens.push(Token::String(s));
             }
             't' => {
                 if json[i..].starts_with("true") {
                     tokens.push(Token::True);
                     i += 3; // Skip over 'rue'
+                } else {
+                    return Err(ParseError::new("Invalid character sequence", i));
                 }
             }
             'f' => {
                 if json[i..].starts_with("false") {
                     tokens.push(Token::False);
                     i += 4; // Skip over 'alse'
+                } else {
+                    return Err(ParseError::new("Invalid character sequence", i));
                 }
             }
             'n' => {
                 if json[i..].starts_with("null") {
                     tokens.push(Token::Null);
                     i += 3; // Skip over 'ull'
+                } else {
+                    return Err(ParseError::new("Invalid character sequence", i));
                 }
             }
             '0'..='9' | '-' => {
                 let mut num_str = String::new();
-                while i < chars.len() && (chars[i].is_numeric() || chars[i] == '.') {
+                let mut has_decimal = false;
+
+                while i < chars.len() && (chars[i].is_numeric() || chars[i] == '.' || chars[i] == '-') {
+                    if chars[i] == '.' {
+                        if has_decimal {
+                            return Err(ParseError::new("Invalid number format", i));
+                        }
+                        has_decimal = true;
+                    }
                     num_str.push(chars[i]);
                     i += 1;
                 }
+
                 if let Ok(number) = num_str.parse::<f64>() {
                     tokens.push(Token::Number(number));
-                    i -= 1; // Because the outer loop will increment i and we don't want to miss processing a non numeric char 
+                    i -= 1; // Because the outer loop will increment i, so we do not want to miss processing the next character.
+                } else {
+                    return Err(ParseError::new("Invalid number format", i - num_str.len()));
                 }
             }
             ' ' | '\n' | '\t' => {} // Ignore whitespace
             _ => {
-                println!("Unexpected character: {}", chars[i]);
+                return Err(ParseError::new("Unexpected character", i));
             }
         }
         i += 1;
     }
-    tokens
+    Ok(tokens)
 }
