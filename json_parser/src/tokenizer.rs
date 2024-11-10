@@ -2,12 +2,12 @@ use crate::parser::ParseError;
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
-    LeftBrace,    
-    RightBrace,   
-    LeftBracket,  
-    RightBracket, 
-    Colon,        
-    Comma,        
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    Colon,
+    Comma,
     String(String),
     Number(f64),
     True,
@@ -22,6 +22,7 @@ pub fn tokenize(json: &str) -> Result<Vec<Token>, ParseError> {
     let mut i = 0;
 
     while i < chars.len() {
+        // println!("At {}th position the char is {} ", i, chars[i]);
         match chars[i] {
             '{' => tokens.push(Token::LeftBrace),
             '}' => tokens.push(Token::RightBrace),
@@ -32,14 +33,49 @@ pub fn tokenize(json: &str) -> Result<Vec<Token>, ParseError> {
             '"' => {
                 // Handle strings
                 let mut s = String::new();
-                i += 1; // Skip the opening quote because it is " 
-                while i < chars.len() && chars[i] != '"' {
-                    s.push(chars[i]);
+                i += 1; // Skip the opening quote
+
+                while i < chars.len() {
+                    match chars[i] {
+                        '\\' => {
+                            // Handle escape sequences
+                            i += 1;
+                            if i < chars.len() {
+                                match chars[i] {
+                                    '"' => s.push('"'),
+                                    '\\' => s.push('\\'),
+                                    'n' => s.push('\n'),
+                                    't' => s.push('\t'),
+                                    'r' => s.push('\r'),
+                                    _ => {
+                                        return Err(ParseError::new(
+                                            &format!(
+                                                "Invalid escape sequence '\\{}' at position {}",
+                                                chars[i], i
+                                            ),
+                                            i,
+                                        ));
+                                    }
+                                }
+                            } else {
+                                return Err(ParseError::new(
+                                    "Unfinished escape sequence at end of string",
+                                    i,
+                                ));
+                            }
+                        }
+                        '"' => break, // End of string
+                        _ => s.push(chars[i]),
+                    }
                     i += 1;
                 }
-                if i >= chars.len() || chars[i]!= '"' {
+
+                if i >= chars.len() || chars[i] != '"' {
                     // Unterminated string
-                    return Err(ParseError::new(&format!("Unterminated string starting at position {}", i), i));
+                    return Err(ParseError::new(
+                        &format!("Unterminated string starting at position {}", i),
+                        i,
+                    ));
                 }
                 tokens.push(Token::String(s));
             }
@@ -56,7 +92,13 @@ pub fn tokenize(json: &str) -> Result<Vec<Token>, ParseError> {
                     tokens.push(Token::False);
                     i += 4; // Skip over 'alse'
                 } else {
-                    return Err(ParseError::new("Invalid character sequence", i));
+                    return Err(ParseError::new(
+                        &format!(
+                            "Invalid character sequence starting with '{}' at position {}",
+                            chars[i], i
+                        ),
+                        i,
+                    ));
                 }
             }
             'n' => {
@@ -71,7 +113,9 @@ pub fn tokenize(json: &str) -> Result<Vec<Token>, ParseError> {
                 let mut num_str = String::new();
                 let mut has_decimal = false;
 
-                while i < chars.len() && (chars[i].is_numeric() || chars[i] == '.' || chars[i] == '-') {
+                while i < chars.len()
+                    && (chars[i].is_numeric() || chars[i] == '.' || chars[i] == '-')
+                {
                     if chars[i] == '.' {
                         if has_decimal {
                             return Err(ParseError::new("Invalid number format", i));

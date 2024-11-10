@@ -43,7 +43,12 @@ fn parse_value(tokens: &[Token], i: &mut usize) -> Result<JsonValue, ParseError>
             *i += 1;
             Ok(JsonValue::Null)
         }
-        _ => Err(ParseError::new("Unexpected token", *i)),
+        _ => return Err(ParseError::with_expected(
+            "Unexpected token in object; expected key or '}'",
+            *i,
+            "a key or '}'"
+        )),
+        
     }
 }
 
@@ -59,24 +64,44 @@ fn parse_object(tokens: &[Token], i: &mut usize) -> Result<JsonValue, ParseError
                     Some(Token::Colon) => {
                         *i += 1; // skip the ':' token
                         let value = parse_value(tokens, i)?;
+                        // object.insert(key.clone(), value);
+                        if object.contains_key(key) {
+                            return Err(ParseError::new(
+                                &format!("Duplicate key '{}' found in object at position {}", key, *i),
+                                *i,
+                            ));
+                        }
                         object.insert(key.clone(), value);
+                        
                         match tokens.get(*i) {
                             Some(Token::Comma) => *i += 1, // skip the ',' token and continue
                             Some(Token::RightBrace) => {
                                 *i += 1; // skip the '}' token and end
                                 return Ok(JsonValue::Object(object));
                             }
-                            _ => return Err(ParseError::new("Expected ',' or '}'", *i+1)),
+                            _ => return Err(ParseError::new(
+                                "Expected ',' or '}' after value in object",
+                                *i,
+                            )),
                         }
                     }
-                    _ => return Err(ParseError::new("Expected ':' after key", *i+1)),
+                    _ => return Err(ParseError::with_expected(
+                        "Unexpected token in object; expected key or '}'",
+                        *i,
+                        "a key or '}'"
+                    )),
+                    
                 }
             }
             Some(Token::RightBrace) => {
                 *i += 1; // skip the '}' token
                 return Ok(JsonValue::Object(object));
             }
-            _ => return Err(ParseError::new("Unexpected token in object", *i+1)),
+            _ => return Err(ParseError::with_expected(
+                "Unexpected token in object; expected key or '}'",
+                *i,
+                "a key or '}'"
+            )),                      
         }
     }
 }
@@ -100,18 +125,26 @@ fn parse_array(tokens: &[Token], i: &mut usize) -> Result<JsonValue, ParseError>
                         *i += 1; // Consume the ']' token and end
                         return Ok(JsonValue::Array(array));
                     }
-                    _ => return Err(ParseError::new("Expected ',' or ']'", *i)),
+                    _ => return Err(ParseError::new(
+                        "Expected ',' or ']' after value in array",
+                        *i,
+                    )),
                 }
             }
-            None => return Err(ParseError::new("Expected ',' or ']'", *i+1)), // Missing closing bracket case
+            None => return Err(ParseError::new(
+                "Unexpected end of input while parsing array",
+                *i,
+            )),
         }
     }
 }
+
 
 #[derive(Debug)]
 pub struct ParseError {
     pub message: String,
     pub position: usize,
+    pub expected: Option<String>,
 }
 
 impl ParseError {
@@ -119,9 +152,23 @@ impl ParseError {
         ParseError {
             message: message.to_string(),
             position,
+            expected: None,
         }
     }
+
+    pub fn with_expected(message: &str, position: usize, expected: &str) -> ParseError {
+        ParseError {
+            message: message.to_string(),
+            position,
+            expected: Some(expected.to_string()),
+        } 
+    }
+
+    pub fn expected(&self) -> &str {
+        self.expected.as_deref().unwrap_or("unknown")
+    }
 }
+
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
