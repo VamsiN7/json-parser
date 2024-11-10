@@ -1,8 +1,24 @@
-mod tokenizer;
-mod parser;
-
 use tokenizer::tokenize;
 use parser::{parse, JsonValue};
+use clap::Parser;
+use std::fs;
+use std::path::Path;
+
+mod tokenizer;
+mod parser;
+#[derive(Parser, Debug)]
+#[command(name = "json_parser")]
+#[command(about = "A simple CLI tool to parse and pretty print JSON files", long_about = None)]
+struct Cli {
+    /// Path to the JSON file to parse
+    #[arg(short, long)]
+    file: String,
+
+    /// Indentation level for pretty printing
+    #[arg(short, long, default_value_t = 2)]
+    indent: usize,
+}
+
 
 impl JsonValue {
     pub fn pretty_print(&self, indent: usize) -> String {
@@ -54,15 +70,29 @@ impl JsonValue {
 }
 
 fn main() {
-    let json = r#"{"key": "value, "num": 123, "bool": true, "arr": [1, 2, "test"], "nullVal": null}"#;
-    
-    match tokenize(json) {
-        Ok(tokens) => {
-            match parse(&tokens) {
-                Ok(value) => println!("{}", value.pretty_print(0)),
-                Err(err) => println!("Error parsing JSON: {}", err),
+    let cli = Cli::parse();
+
+    let file_path = Path::new(&cli.file);
+    if !file_path.exists() {
+        eprintln!("Error: File not found: {}", cli.file);
+        std::process::exit(1);
+    }
+
+    let json_content = fs::read_to_string(file_path).expect("Unable to read file");
+    match tokenize(&json_content) {
+        Ok(tokens) => match parse(&tokens) {
+            Ok(json_value) => {
+                let pretty_output = json_value.pretty_print(cli.indent);
+                println!("{}", pretty_output);
             }
+            Err(e) => {
+                eprintln!("Error while parsing JSON: {}", e);
+                std::process::exit(1);
+            }
+        },
+        Err(e) => {
+            eprintln!("Error while tokenizing JSON: {}", e);
+            std::process::exit(1);
         }
-        Err(err) => println!("Error tokenizing JSON: {}", err),
     }
 }
