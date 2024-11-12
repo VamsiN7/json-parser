@@ -1,10 +1,8 @@
 {
-    "name": "Vamsi"
-    "age": 25,
-    "is_student": true,
-    "skills": ["Rust", "Java", "Python"],
+    "name": "John",
+    "age": 25,"is_student": true,"skills": ["Rust", "Java", "Python"],
     "address": {
         "city": "Boston",
-        "zip_code": "02115"
+        "zip_code": "01234"
     }
 }
